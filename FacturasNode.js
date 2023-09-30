@@ -54,6 +54,11 @@ app.get('/', (req, res) => {
 `;
     res.send(html);
 });
+// Crear el directorio "uploads" si no existe
+const uploadsDirectory = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDirectory)) {
+    fs.mkdirSync(uploadsDirectory);
+}
 
 // Ruta para procesar los archivos XML en la carpeta seleccionada
 app.post('/procesarArchivos', async (req, res) => {
