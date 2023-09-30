@@ -80,8 +80,8 @@ app.post('/procesarArchivos', async (req, res) => {
 
 });
 // Iniciar el servidor  
-app.listen(process.env.PORT || 5000);
-console.log('Servidor iniciado en el puerto', process.env.PORT || 5000);
+app.listen(process.env.PORT || 3000);
+console.log('Servidor iniciado en el puerto', process.env.PORT || 3000);
 
 function findDescriptionRecursive(obj) {
     for (const key in obj) {
