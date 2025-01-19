@@ -11,7 +11,7 @@ const AdmZip = require('adm-zip');
 const { Parser } = require('xml2js');
 const multer = require('multer');
 const XLSX = require('xlsx'); // Agrega la biblioteca xlsx
-
+const parse = require('pdf-parse')
 let facturasProcesadas = [];
 const app = express();
 // Configurar el middleware multer
@@ -251,7 +251,7 @@ async function processXMLs(directoryPath) {
     const files = fs.readdirSync(directoryPath);
     console.log('Files ' + files);
     for (const file of files) {
-        if (file.endsWith('.xml')) {
+        if (file.endsWith('.pdf')) {
 
             const filePath = path.join(directoryPath, file);
             //console.log(filePath);
