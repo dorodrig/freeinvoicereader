@@ -11,7 +11,8 @@ const AdmZip = require('adm-zip');
 const { Parser } = require('xml2js');
 const multer = require('multer');
 const XLSX = require('xlsx'); // Agrega la biblioteca xlsx
-const parse = require('pdf-parse')
+//const pdfParse  = require('pdf-parse')
+const PDFParser   = require('pdf2json')
 let facturasProcesadas = [];
 const app = express();
 // Configurar el middleware multer
@@ -26,10 +27,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage }); // Define el directorio donde se almacenarán temporalmente los archivos subidos
 app.use(upload.array('files')); // 'files' debe coincidir con el name del input en el formulario HTML
 
-//const port = 5501;
-
-const environment = 'sa1';
-
 app.use(function (req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
@@ -43,7 +40,7 @@ app.get('/', (req, res) => {
     const html = `
     <html>
         <body>
-            <h1>Procesar Archivos XML</h1>
+            <h1>Procesar Archivos PDF MAC CENTER</h1>
             <form action="/procesarArchivos" method="post" enctype="multipart/form-data">
                 <label for="directory">Seleccione la carpeta:</label>
                 <input type="file" id="directory" name="files" multiple required><br>
@@ -76,7 +73,7 @@ app.post('/procesarArchivos', async (req, res) => {
                 facturasProcesadas.push(factura); // Agregar la factura procesada al arreglo
             }
         }
-        const message = 'Archivos XML procesados y autenticados por API. Consulte el archivo CSV para ver los datos.';
+        const message = 'Archivos PDF procesados';
         res.redirect(`/success?message=${encodeURIComponent(message)}&facturas=${encodeURIComponent(JSON.stringify(facturasProcesadas))}`);
     } catch (error) {
         console.error(error);
@@ -200,14 +197,15 @@ function clearTempFolder(directoryPath) {
 }
 app.get('/success', (req, res) => {
     const { message, facturas } = req.query;
-    const facturasProcesadas = JSON.parse(facturas);
-    const htmlsucces = `
+    const facturasProcesadas= JSON.parse(facturas); 
+    const facturasProcesadas2= facturasProcesadas[0];    
+        const htmlsucces = `
         <html>
             <body>
                 <h3>${message}</h3>
                 <h4>Facturas procesadas correctamente:</h4>
                 <ul>
-                    ${facturasProcesadas.map((factura) => `<li>${factura}</li>`).join('')}
+                ${facturasProcesadas2.map((facturas) => `<li>${facturas.factura}</li>`).join('')}                    
                 </ul>
                 <a href="/convertToExcel">Descargar EXCEL</a> <!-- Agregar enlace para descargar CSV -->
             </body>
@@ -216,15 +214,28 @@ app.get('/success', (req, res) => {
     res.send(htmlsucces);
 });
 app.get('/convertToExcel', (req, res) => {
-    const csvFilePath = path.join(__dirname, 'datos.csv');
+    // Verifica si hay facturas procesadas
+    if (facturasProcesadas.length === 0) {
+        return res.status(400).send('No hay facturas procesadas para convertir.');
+    }
+    const facturasProcesadas2= facturasProcesadas[0];  
+    console.log('datos del excel'+ facturasProcesadas2);
+    //const csvFilePath = path.join(__dirname, 'datos.csv');
     const excelFilePath = path.join(__dirname, 'datos.xlsx');
     // Leer el archivo CSV
-    const csvData = fs.readFileSync(csvFilePath, 'utf8');
+    //const csvData = fs.readFileSync(csvFilePath, 'utf8');
     // Analizar el contenido CSV
-    const csvRows = csvData.split('\n').map((row) => row.split('|'));
+     // Crea los datos para el archivo Excel
+     const csvRows = facturasProcesadas2.map(factura => [
+        factura.factura,
+        factura.nit,
+        factura.proveedor,  // o cualquier otro campo que quieras incluir
+        factura.orden_compra,
+        factura.entregado_a
+    ]);
     // Crear un objeto de trabajo de Excel
     const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.aoa_to_sheet(csvRows);
+    const worksheet = XLSX.utils.aoa_to_sheet(csvRows);
     // Agregar la hoja al libro de trabajo
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Hoja1'); // 'Hoja1' es el nombre de la hoja
 // Guardar el libro de trabajo como archivo Excel
@@ -242,42 +253,62 @@ console.log('Excel downloaded successfully.');
     });
 });
 
+//Extrae el contenido del PDF y lo convierte a JSON
+async function processInvoicePDF(filePath) {
+    const pdfParser = new PDFParser();
+
+    return new Promise((resolve, reject) => {
+        pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
+        pdfParser.on("pdfParser_dataReady", pdfData => {
+            let allText = ""; // Combinar todo el texto
+            const groupedTextByPage = [];
+
+            pdfData.Pages.forEach(page => {
+                // Paso 1: Combina todo el texto
+                page.Texts.forEach(textItem => {
+                    const text = decodeURIComponent(textItem.R.map(r => r.T).join(""));
+                    allText += text + " ";
+                });
+
+                // Paso 3: Agrupa texto por coordenadas
+                const grouped = {};
+                page.Texts.forEach(textItem => {
+                    const y = Math.round(textItem.y * 100); // Agrupar por posición Y
+                    const text = decodeURIComponent(textItem.R.map(r => r.T).join(""));
+                    if (!grouped[y]) grouped[y] = [];
+                    grouped[y].push(text);
+                });
+                groupedTextByPage.push(grouped);
+            });
+
+            
+            resolve({ allText: allText.trim(), groupedTextByPage });
+        });
+        pdfParser.loadPDF(filePath);
+    });
+}
 // Procesar los archivos XML
-async function processXMLs(directoryPath) {
-    // Obtener el token de autenticación
-   // const token = await getAuthToken();
-    const facturasProcesadas = [];
-    // Recorrer los archivos XML en el directorio
+async function processXMLs(directoryPath) {   
+    const facturasProcesadas = [];   
     const files = fs.readdirSync(directoryPath);
-    console.log('Files ' + files);
-    for (const file of files) {
+     for (const file of files) {
         if (file.endsWith('.pdf')) {
+            const filePath = path.join(directoryPath, file);            
+            // Uso del flujo completo
+            await processInvoicePDF(filePath).then(({  groupedTextByPage }) => {
+                let array_GroupedTextByPage= groupedTextByPage[0];
+                var datos_extraidos ={
+                    factura : array_GroupedTextByPage[415][0],
+                    nit : array_GroupedTextByPage[238][0],
+                    proveedor : array_GroupedTextByPage[161][0],
+                    orden_compra : array_GroupedTextByPage[876][1],
+                    entregado_a : array_GroupedTextByPage[1017][0]
 
-            const filePath = path.join(directoryPath, file);
-            //console.log(filePath);
-            // Leer el archivo XML
-            const xmlData = fs.readFileSync(filePath, 'utf8');
+                };
+                //console.log(datos_extraidos);
+                facturasProcesadas.push(datos_extraidos);
 
-            // Convertir el XML a un objeto JavaScript
-            const parser = new xml2js.Parser();
-            try {
-                const parsedData = await parser.parseStringPromise(xmlData);
-                //console.log(parsedData);
-                // Extraer la información del objeto JavaScript
-                const { factura, fecha, valor, valor2, descripcion, nit2 } = extraerInformacionXML(parsedData);
-           
-                // Guardar los datos en un archivo CSV
-                const dataRow = [factura, fecha, valor, valor2, nit2, descripcion, file];
-
-                const csvRow = dataRow.join('|');
-                const csvFilePath = path.join(__dirname, 'datos.csv');                
-                fs.appendFileSync('datos.csv', csvRow + '\n', 'utf8');
-
-                facturasProcesadas.push(factura); // Agregar la factura procesada al arreglo                
-            } catch (error) {
-                console.error('Error parsing XML:', error);
-            }
-            // Eliminar el archivo después de procesarlo
+            }).catch(error => console.error("Error:", error));
             fs.unlinkSync(filePath);
         } else {
             console.log(`Ignoring file "${file}" as it does not have a .xml extension.`);
