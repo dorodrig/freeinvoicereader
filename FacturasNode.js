@@ -1,18 +1,12 @@
 const express = require('express');
-const https = require('https');
-const querystring = require('querystring');
-const xml2js = require('xml2js');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
 const bodyParser = require('body-parser');
-const csv = require('csv-writer').createObjectCsvWriter;
-const AdmZip = require('adm-zip');
-const { Parser } = require('xml2js');
 const multer = require('multer');
 const XLSX = require('xlsx'); // Agrega la biblioteca xlsx
-//const pdfParse  = require('pdf-parse')
 const PDFParser   = require('pdf2json')
+
+//const pdfParse  = require('pdf-parse')
 let facturasProcesadas = [];
 const app = express();
 // Configurar el middleware multer
@@ -85,103 +79,6 @@ app.post('/procesarArchivos', async (req, res) => {
 app.listen(process.env.PORT || 3000);
 console.log('Servidor iniciado en el puerto', process.env.PORT || 3000);
 
-function findDescriptionRecursive(obj) {
-    for (const key in obj) {
-        if (typeof obj[key] === 'object') {
-            if (key === 'cbc:Description') {
-                return obj[key];
-            } else {
-                const result = findDescriptionRecursive(obj[key]);
-                if (result) {
-                    return result;
-                }
-            }
-        }
-    }
-    return null;
-}
-function extraerInformacionXML(parsedData) {
-    let cbcPayableAmount = 0; // Declarar la variable cbcPayableAmount
-    let cbcdesc;
-    if (parsedData.AttachedDocument && Array.isArray(parsedData.AttachedDocument['cac:Attachment']) &&
-        parsedData.AttachedDocument['cac:Attachment'].length > 0
-    ) {
-        // Obtener el primer elemento dentro del array 'cac:Attachment'
-        const attachment = parsedData.AttachedDocument['cac:Attachment'][0];
-        //console.log('Contenido de "cac:Attachment":', attachment);
-
-        // Verificar si 'cac:ExternalReference' existe en el elemento 'cac:Attachment'
-        if (
-            attachment['cac:ExternalReference'] &&
-            Array.isArray(attachment['cac:ExternalReference']) &&
-            attachment['cac:ExternalReference'].length > 0 &&
-            attachment['cac:ExternalReference'][0]['cbc:Description']
-        ) {
-            const description = attachment['cac:ExternalReference'][0]['cbc:Description'][0];
-            const parser = new xml2js.Parser();
-            let parsedDescription;
-
-            parser.parseString(description, (err, result) => {
-                if (err) {
-                    console.error('Error parsing XML:', err);
-                    return;
-                }
-                parsedDescription = result;
-                //console.log('Contenido de "cbc:Description" como objeto JavaScript:', parsedDescription);
-
-                // Verificar si 'cac:LegalMonetaryTotal' existe en el objeto 'parsedDescription'
-                if (
-                    parsedDescription['Invoice'] &&
-                    parsedDescription['Invoice']['cac:LegalMonetaryTotal'] &&
-                    Array.isArray(parsedDescription['Invoice']['cac:LegalMonetaryTotal']) &&
-                    parsedDescription['Invoice']['cac:LegalMonetaryTotal'].length > 0 &&
-                    parsedDescription['Invoice']['cac:LegalMonetaryTotal'][0]['cbc:PayableAmount']
-                ) {
-                    // Obtener el valor de 'cbc:PayableAmount'
-                    cbcPayableAmount = parsedDescription['Invoice']['cac:LegalMonetaryTotal'][0]['cbc:PayableAmount'][0]._;
-                    //console.log('Valor de "cbc:PayableAmount":', cbcPayableAmount);
-                } else {
-                    console.log('No se encontró el elemento "cbc:PayableAmount" dentro de "cac:LegalMonetaryTotal".');
-                }
-                // Verificar si 'cac:LegalMonetaryTotal' existe en el objeto 'parsedDescription'
-                let cbcdesc1 = findDescriptionRecursive(parsedDescription);
-                cbcdesc = cbcdesc1.join("")
-                if (cbcdesc) {
-                    //console.log('Valor de "cbcdesc":', cbcdesc);
-                } else {
-                    console.log('No se encontró el elemento "cbc:PayableAmount" dentro de "cbc:Description".');
-                }
-            });
-
-
-        } else {
-            console.log('No se encontró el elemento "cbc:ExternalReference" o "cbc:Description" dentro de "cac:Attachment".');
-        }
-    } else {
-        console.log('No se encontró el elemento "cac:Attachment" o está vacío.');
-    }
-    let factura = parsedData['AttachedDocument']['cbc:ID'] && parsedData['AttachedDocument']['cbc:ID'][0] || '';
-    let fecha = parsedData['AttachedDocument']['cbc:IssueDate'] && parsedData['AttachedDocument']['cbc:IssueDate'][0] || '';
-    const valor = parseInt(cbcPayableAmount); // Convertir el valor a número, si es necesario
-    const valor2 = valor.toLocaleString('es-CO', { style: 'currency', currency: 'COP' });
-    let nit2 = parsedData['AttachedDocument']['cac:SenderParty'] && parsedData['AttachedDocument']['cac:SenderParty'][0]['cac:PartyTaxScheme'] && parsedData['AttachedDocument']['cac:SenderParty'][0]['cac:PartyTaxScheme'][0]['cbc:CompanyID'] && parsedData['AttachedDocument']['cac:SenderParty'][0]['cac:PartyTaxScheme'][0]['cbc:CompanyID'][0]['_'];
-    let descripcion = cbcdesc || '';
-
-    console.log('Factura:', factura);
-    console.log('Fecha:', fecha);
-    console.log('Valor:', valor);
-    console.log('Descripción:', descripcion);
-    console.log('Nit2:', nit2);
-
-    return {
-        factura,
-        fecha,
-        valor,
-        valor2,
-        descripcion,
-        nit2,
-    };
-}
 // Borrar el contenido de la carpeta temporal "uploads" después de procesar los archivos
 function clearTempFolder(directoryPath) {
     try {
