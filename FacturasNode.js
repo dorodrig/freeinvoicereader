@@ -218,24 +218,22 @@ app.get('/convertToExcel', (req, res) => {
     if (facturasProcesadas.length === 0) {
         return res.status(400).send('No hay facturas procesadas para convertir.');
     }
-    const facturasProcesadas2= facturasProcesadas[0];  
-    console.log('datos del excel'+ facturasProcesadas2);
-    //const csvFilePath = path.join(__dirname, 'datos.csv');
-    const excelFilePath = path.join(__dirname, 'datos.xlsx');
-    // Leer el archivo CSV
-    //const csvData = fs.readFileSync(csvFilePath, 'utf8');
-    // Analizar el contenido CSV
+    const facturasProcesadas2= facturasProcesadas[0]; 
+    const excelFilePath = path.join(__dirname, 'datos.xlsx');    
      // Crea los datos para el archivo Excel
      const csvRows = facturasProcesadas2.map(factura => [
         factura.factura,
         factura.nit,
         factura.proveedor,  // o cualquier otro campo que quieras incluir
         factura.orden_compra,
-        factura.entregado_a
+        factura.entregado_a,
+        factura.codigo_item,
+        factura.descripcion,
+        factura.valor
     ]);
     // Crear un objeto de trabajo de Excel
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.aoa_to_sheet(csvRows);
+    const workbook = XLSX.utils.book_new();    
+     worksheet = XLSX.utils.aoa_to_sheet(csvRows);
     // Agregar la hoja al libro de trabajo
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Hoja1'); // 'Hoja1' es el nombre de la hoja
 // Guardar el libro de trabajo como archivo Excel
@@ -296,16 +294,18 @@ async function processXMLs(directoryPath) {
             const filePath = path.join(directoryPath, file);            
             // Uso del flujo completo
             await processInvoicePDF(filePath).then(({  groupedTextByPage }) => {
-                let array_GroupedTextByPage= groupedTextByPage[0];
+                let array_GroupedTextByPage= groupedTextByPage[0];                
                 var datos_extraidos ={
                     factura : array_GroupedTextByPage[415][0],
                     nit : array_GroupedTextByPage[238][0],
                     proveedor : array_GroupedTextByPage[161][0],
                     orden_compra : array_GroupedTextByPage[876][1],
-                    entregado_a : array_GroupedTextByPage[1017][0]
+                    entregado_a : array_GroupedTextByPage[1017][0],
+                    codigo_item : array_GroupedTextByPage[1934][3],
+                    descripcion : array_GroupedTextByPage[1934][0],
+                    valor : array_GroupedTextByPage[1934][1],
 
                 };
-                //console.log(datos_extraidos);
                 facturasProcesadas.push(datos_extraidos);
 
             }).catch(error => console.error("Error:", error));
