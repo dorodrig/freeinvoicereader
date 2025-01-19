@@ -27,19 +27,36 @@ app.use(function (req, res, next) {
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     next();
 });
+app.get('/style.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style.css'));
+});
 
 app.use(bodyParser.urlencoded({ extended: true }));
 // Ruta para mostrar el formulario de selección de carpeta
 app.get('/', (req, res) => {
     const html = `
     <html>
+     <head>
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <title>Extractor de Facturas</title>
+    <link rel="stylesheet" href="./style.css" />
+     </head>
         <body>
+        <div id="title">
             <h1>Procesar Archivos PDF MAC CENTER</h1>
-            <form action="/procesarArchivos" method="post" enctype="multipart/form-data">
-                <label for="directory">Seleccione la carpeta:</label>
-                <input type="file" id="directory" name="files" multiple required><br>
-                <button type="submit">Procesar Archivos XML</button>
-            </form>
+         </div>   
+        <div class="container">
+                <div class="row">
+                    <div class="col-md-12">
+                        <form action="/procesarArchivos" method="post" enctype="multipart/form-data">
+                            <label for="directory">Seleccione la carpeta:</label>
+                            <input type="file" id="directory" name="files" multiple required><br>
+                            <button class ="btn_carga"type="submit">Procesar Archivos XML</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </body>
     </html>
 `;
@@ -98,7 +115,14 @@ app.get('/success', (req, res) => {
     const facturasProcesadas2= facturasProcesadas[0];    
         const htmlsucces = `
         <html>
-            <body>
+      
+           <head>
+             <meta charset="UTF-8" />
+             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+             <title>Extractor de Facturas</title>
+             <link rel="stylesheet" href="./style.css" />
+            </head>
+         <body>
                 <h3>${message}</h3>
                 <h4>Facturas procesadas correctamente:</h4>
                 <ul>
